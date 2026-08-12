@@ -5,6 +5,9 @@ on:
     - cron: '0 0 * * *' # Runs automatically every day at midnight
   workflow_dispatch: # Allows you to run it manually anytime
 
+permissions:
+  contents: write
+
 jobs:
   update-readme:
     runs-on: ubuntu-latest
@@ -12,46 +15,70 @@ jobs:
       - name: Checkout Hub Repo
         uses: actions/checkout@v4
 
-      - name: Fetch and Format Tagged Repos
+      - name: Fetch Repos and Update README
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           USERNAME: ${{ github.repository_owner }}
         run: |
-          # Search for your public repos tagged with 'wii-forwarder'
-          REPOS=$(gh api "search/repositories?q=user:$USERNAME+topic:wii-forwarder+is:public" --jq '.items[] | .name')
-          
-          LIST_CONTENT=""
-          
-          for REPO in $REPOS; do
-            # Fetch the first line of the repo's README
-            FIRST_LINE=$(gh api "repos/$USERNAME/$REPO/readme" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | head -n 1)
-            
-            # Clean up Markdown headers like '# ' or '## ' from the title line
-            CLEAN_TITLE=$(echo "$FIRST_LINE" | sed 's/^[#[:space:]]*//')
-            
-            # Fallback to repo name if README is empty or missing
-            if [ -z "$CLEAN_TITLE" ]; then
-              CLEAN_TITLE="$REPO"
-            fi
-            
-            # Construct the markdown bullet point
-            LIST_CONTENT="$LIST_CONTENT\n- [$CLEAN_TITLE](https://github.com)"
-          done
+          python3 -c "
+          import os, subprocess, json, base64
 
-          # Insert the generated list between the markdown comment markers
-          sed -i "/<!-- REPOS_LIST_START -->/,/<!-- REPOS_LIST_END -->/ {
-            /<!-- REPOS_LIST_START -->/b
-            /<!-- REPOS_LIST_END -->/b
-            d
-          }" README.md
+          # Setup environment variables
+          token = os.environ['GH_TOKEN']
+          username = os.environ['USERNAME']
           
-          # Inject the content safely
-          sed -i "/<!-- REPOS_LIST_START -->/a $LIST_CONTENT" README.md
+          # Fetch all repositories matching the topic
+          cmd = f'gh api \"search/repositories?q=user:{username}+topic:wii-forwarder+is:public\"'
+          result = subprocess.check_output(cmd, shell=True).decode('utf-8')
+          repos_data = json.loads(result).get('items', [])
+          
+          list_lines = []
+          for repo in repos_data:
+              repo_name = repo['name']
+              repo_url = f'https://github.com/{username}/{repo_name}'
+              
+              # Fetch the first line of the README
+              try:
+                  readme_cmd = f'gh api \"repos/{username}/{repo_name}/readme\"'
+                  readme_data = json.loads(subprocess.check_output(readme_cmd, shell=True).decode('utf-8'))
+                  content = base64.b64decode(readme_data['content']).decode('utf-8')
+                  first_line = content.split('\n')[0].strip()
+                  title = first_line.lstrip('#').strip()
+              except Exception:
+                  title = ''
+                  
+              # Fallback to repo name if title is empty
+              if not title:
+                  title = repo_name
+                  
+              list_lines.append(f'- [{title}]({repo_url})')
+          
+          # Read the current hub README
+          with open('README.md', 'r') as f:
+              readme_content = f.read()
+              
+          # Locate markers and swap contents cleanly
+          start_marker = '<!-- REPOS_LIST_START -->'
+          end_marker = '<!-- REPOS_LIST_END -->'
+          
+          if start_marker in readme_content and end_marker in readme_content:
+              before = readme_content.split(start_marker)[0]
+              after = readme_content.split(end_marker)[1]
+              
+              new_list = '\n'.join(list_lines)
+              updated_readme = f'{before}{start_marker}\n{new_list}\n{end_marker}{after}'
+              
+              with open('README.md', 'w') as f:
+                  f.write(updated_readme)
+              print('README updated successfully!')
+          else:
+              print('Markers not found in README.md!')
+          "
 
       - name: Commit and Push Changes
         run: |
           git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@://github.com"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add README.md
-          git diff-index --quiet HEAD || git commit -m "Update forwarder repository list"
+          git diff-index --quiet HEAD || git commit -m "Update forwarder repository list with full links"
           git push
