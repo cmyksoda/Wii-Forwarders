@@ -1,0 +1,57 @@
+name: Update Hub List
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Runs automatically every day at midnight
+  workflow_dispatch: # Allows you to run it manually anytime
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Hub Repo
+        uses: actions/checkout@v4
+
+      - name: Fetch and Format Tagged Repos
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          USERNAME: ${{ github.repository_owner }}
+        run: |
+          # Search for your public repos tagged with 'wii-forwarder'
+          REPOS=$(gh api "search/repositories?q=user:$USERNAME+topic:wii-forwarder+is:public" --jq '.items[] | .name')
+          
+          LIST_CONTENT=""
+          
+          for REPO in $REPOS; do
+            # Fetch the first line of the repo's README
+            FIRST_LINE=$(gh api "repos/$USERNAME/$REPO/readme" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | head -n 1)
+            
+            # Clean up Markdown headers like '# ' or '## ' from the title line
+            CLEAN_TITLE=$(echo "$FIRST_LINE" | sed 's/^[#[:space:]]*//')
+            
+            # Fallback to repo name if README is empty or missing
+            if [ -z "$CLEAN_TITLE" ]; then
+              CLEAN_TITLE="$REPO"
+            fi
+            
+            # Construct the markdown bullet point
+            LIST_CONTENT="$LIST_CONTENT\n- [$CLEAN_TITLE](https://github.com)"
+          done
+
+          # Insert the generated list between the markdown comment markers
+          sed -i "/<!-- REPOS_LIST_START -->/,/<!-- REPOS_LIST_END -->/ {
+            /<!-- REPOS_LIST_START -->/b
+            /<!-- REPOS_LIST_END -->/b
+            d
+          }" README.md
+          
+          # Inject the content safely
+          sed -i "/<!-- REPOS_LIST_START -->/a $LIST_CONTENT" README.md
+
+      - name: Commit and Push Changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@://github.com"
+          git add README.md
+          git diff-index --quiet HEAD || git commit -m "Update forwarder repository list"
+          git push
