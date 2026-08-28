@@ -20,60 +20,77 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           USERNAME: ${{ github.repository_owner }}
         run: |
-          python3 -c "
-          import os, subprocess, json, base64
+          python3 - <<'EOF'
+          import os, re, subprocess, json, base64
 
-          # Setup environment variables
-          token = os.environ['GH_TOKEN']
           username = os.environ['USERNAME']
-          
+
+          def gh_api(path, include_headers=False):
+              args = ['gh', 'api', path] + (['-i'] if include_headers else [])
+              return subprocess.check_output(args).decode('utf-8')
+
+          def first_commit_date(repo_name):
+              # The API only pages newest-first, so jump to the last page for the root commit.
+              raw = gh_api(f'repos/{username}/{repo_name}/commits?per_page=1', include_headers=True)
+              headers, body = raw.split('\n\n', 1)
+              m = re.search(r'page=(\d+)>; rel="last"', headers)
+              if m:
+                  body = gh_api(f'repos/{username}/{repo_name}/commits?per_page=1&page={m.group(1)}')
+              return json.loads(body)[0]['commit']['author']['date']
+
           # Fetch all repositories matching the topic
-          cmd = f'gh api \"search/repositories?q=user:{username}+topic:wii-forwarder+is:public\"'
-          result = subprocess.check_output(cmd, shell=True).decode('utf-8')
+          result = gh_api(f'search/repositories?q=user:{username}+topic:wii-forwarder+is:public')
           repos_data = json.loads(result).get('items', [])
-          
+
+          # Search results come back in "best match" order, which reshuffles ties day to day.
+          for repo in repos_data:
+              try:
+                  repo['sort_key'] = first_commit_date(repo['name'])
+              except Exception:
+                  repo['sort_key'] = repo['created_at']
+          repos_data.sort(key=lambda r: (r['sort_key'], r['name']))
+
           list_lines = []
           for repo in repos_data:
               repo_name = repo['name']
               repo_url = f'https://github.com/{username}/{repo_name}'
-              
+
               # Fetch the first line of the README
               try:
-                  readme_cmd = f'gh api \"repos/{username}/{repo_name}/readme\"'
-                  readme_data = json.loads(subprocess.check_output(readme_cmd, shell=True).decode('utf-8'))
+                  readme_data = json.loads(gh_api(f'repos/{username}/{repo_name}/readme'))
                   content = base64.b64decode(readme_data['content']).decode('utf-8')
                   first_line = content.split('\n')[0].strip()
                   title = first_line.lstrip('#').strip()
               except Exception:
                   title = ''
-                  
+
               # Fallback to repo name if title is empty
               if not title:
                   title = repo_name
-                  
+
               list_lines.append(f'- [{title}]({repo_url})')
-          
+
           # Read the current hub README
           with open('README.md', 'r') as f:
               readme_content = f.read()
-              
+
           # Locate markers and swap contents cleanly
           start_marker = '<!-- REPOS_LIST_START -->'
           end_marker = '<!-- REPOS_LIST_END -->'
-          
+
           if start_marker in readme_content and end_marker in readme_content:
               before = readme_content.split(start_marker)[0]
               after = readme_content.split(end_marker)[1]
-              
+
               new_list = '\n'.join(list_lines)
               updated_readme = f'{before}{start_marker}\n{new_list}\n{end_marker}{after}'
-              
+
               with open('README.md', 'w') as f:
                   f.write(updated_readme)
               print('README updated successfully!')
           else:
               print('Markers not found in README.md!')
-          "
+          EOF
 
       - name: Commit and Push Changes
         run: |
