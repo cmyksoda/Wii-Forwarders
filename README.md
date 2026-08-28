@@ -1,6 +1,6 @@
 # cmyksoda's forwarder channels
 
-This repository will dynamically update listing all of my currently available forwarder channels for the Nintendo Wii.
+This repository will dynamically update, listing all of my currently available forwarder channels for the Nintendo Wii.
 
 <!-- REPOS_LIST_START -->
 - [mGBA GX Forwarder Channel](https://github.com/cmyksoda/mgba-gx-forwarder-channel)
