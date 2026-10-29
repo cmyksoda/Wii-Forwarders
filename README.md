@@ -13,7 +13,7 @@ This repository will dynamically update, listing all of my currently available f
 ### Licensing
 
 - **This Hub Repository:** Licensed under [CC0 1.0 Universal](LICENSE) (Public Domain). You are free to copy this setup, the styling, or the automation scripts without restriction.
-- **Wii Forwarder Projects:** Each individual channel repository linked above is protected under the **GNU GPLv3 License**. If you modify and redistribute the source code for any of the forwarder channels, you must keep your changes open-source.
+- **Wii Forwarder Projects:** Each individual channel repository linked above is protected under the **GNU GPLv3 License** (or later, for my own parts of the LSD Dream Emulator and Z-GX channels). If you modify and redistribute the source code for any of the forwarder channels, you must keep your changes open-source.
 
 ---
 
