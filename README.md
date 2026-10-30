@@ -7,6 +7,8 @@ This repository will dynamically update, listing all of my currently available f
 - [LSD Dream Emulator Forwarder Channel](https://github.com/cmyksoda/lsd-dream-emulator-forwarder)
 - [Z-GX Forwarder Channel](https://github.com/cmyksoda/z-gx-forwarder-channel)
 - [The Homebrew Channel, Upside Down](https://github.com/cmyksoda/hbc-upside-down)
+- [VBoy Color GX Forwarder Channel](https://github.com/cmyksoda/vboy-color-gx-forwarder-channel)
+- [Empty Slot Creator](https://github.com/cmyksoda/empty-slot-creator)
 <!-- REPOS_LIST_END -->
 
 
